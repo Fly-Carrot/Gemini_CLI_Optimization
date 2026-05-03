@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE_PATH" ]]; do
+  SOURCE_DIR="$(cd "$(dirname "$SOURCE_PATH")" && pwd)"
+  SOURCE_PATH="$(readlink "$SOURCE_PATH")"
+  [[ "$SOURCE_PATH" != /* ]] && SOURCE_PATH="$SOURCE_DIR/$SOURCE_PATH"
+done
+
+SCRIPT_DIR="$(cd "$(dirname "$SOURCE_PATH")" && pwd)"
+REPO_ROOT="$SCRIPT_DIR/ref structure/gemini-cli"
+CLI_ENTRY="$REPO_ROOT/packages/cli/dist/index.js"
+RUNTIME_CONFIG_DEFAULT="$SCRIPT_DIR/gemini-2-runtime.json"
+RUNTIME_CONFIG_LOCAL_DEFAULT="$SCRIPT_DIR/gemini-2-runtime.local.json"
+RUNTIME_CONFIG_HELPER="$SCRIPT_DIR/scripts/read_gemini2_runtime_field.mjs"
+UPSTREAM_CHECK_HELPER="$SCRIPT_DIR/scripts/check_gemini2_upstream_update.mjs"
+FABRIC_ROOT_DEFAULT="$HOME/Antigravity_Skills/global-agent-fabric"
+SYSTEM_SETTINGS_DEFAULT="$SCRIPT_DIR/gemini-2-system-settings.json"
+
+export GEMINI2_RUNTIME_CONFIG_PATH="${GEMINI2_RUNTIME_CONFIG_PATH:-$RUNTIME_CONFIG_DEFAULT}"
+export GEMINI2_RUNTIME_CONFIG_LOCAL_PATH="${GEMINI2_RUNTIME_CONFIG_LOCAL_PATH:-$RUNTIME_CONFIG_LOCAL_DEFAULT}"
+
+read_runtime_config_field() {
+  local field="$1"
+  if [[ -f "$RUNTIME_CONFIG_HELPER" ]]; then
+    local config_args=()
+    if [[ -f "$GEMINI2_RUNTIME_CONFIG_PATH" ]]; then
+      config_args+=("$GEMINI2_RUNTIME_CONFIG_PATH")
+    fi
+    if [[ -f "$GEMINI2_RUNTIME_CONFIG_LOCAL_PATH" ]]; then
+      config_args+=("$GEMINI2_RUNTIME_CONFIG_LOCAL_PATH")
+    fi
+    if [[ "${#config_args[@]}" -gt 0 ]]; then
+      node "$RUNTIME_CONFIG_HELPER" "${config_args[@]}" "$field" 2>/dev/null || true
+    fi
+  fi
+}
+
+runtime_fabric_root="$(read_runtime_config_field sharedFabricRoot)"
+runtime_system_settings_path="$(read_runtime_config_field systemSettingsPath)"
+runtime_default_model="$(read_runtime_config_field defaults.model)"
+runtime_default_effort="$(read_runtime_config_field defaults.effort)"
+runtime_default_approval_mode="$(read_runtime_config_field defaults.approvalMode)"
+runtime_default_loop_mode="$(read_runtime_config_field defaults.loopMode)"
+runtime_default_skills_mode="$(read_runtime_config_field defaults.skillsMode)"
+runtime_default_agents_mode="$(read_runtime_config_field defaults.agentsMode)"
+runtime_upstream_watch_enabled="$(read_runtime_config_field upstreamWatch.enabled)"
+runtime_upstream_watch_interval_hours="$(read_runtime_config_field upstreamWatch.intervalHours)"
+
+export GEMINI2_SHARED_FABRIC_ROOT="${GEMINI2_SHARED_FABRIC_ROOT:-${runtime_fabric_root:-$FABRIC_ROOT_DEFAULT}}"
+export GEMINI2_SHARED_FABRIC_WORKSPACE="${GEMINI2_SHARED_FABRIC_WORKSPACE:-$PWD}"
+export AGF_GLOBAL_ROOT="${AGF_GLOBAL_ROOT:-$GEMINI2_SHARED_FABRIC_ROOT}"
+export AGF_WORKSPACE="${AGF_WORKSPACE:-$GEMINI2_SHARED_FABRIC_WORKSPACE}"
+export AGF_MULTICLI_ORIGIN_RUNTIME="${AGF_MULTICLI_ORIGIN_RUNTIME:-gemini-2}"
+export AGF_MULTICLI_TARGET_RUNTIME="${AGF_MULTICLI_TARGET_RUNTIME:-gemini-cli-fork}"
+export AGF_MULTICLI_CONTEXT_ENTRYPOINT="${AGF_MULTICLI_CONTEXT_ENTRYPOINT:-gemini-2-launcher}"
+export GEMINI_CLI_SYSTEM_SETTINGS_PATH="${GEMINI_CLI_SYSTEM_SETTINGS_PATH:-${runtime_system_settings_path:-$SYSTEM_SETTINGS_DEFAULT}}"
+export GEMINI2_DEFAULT_MODEL="${GEMINI2_DEFAULT_MODEL:-${runtime_default_model:-pro}}"
+export GEMINI2_DEFAULT_EFFORT="${GEMINI2_DEFAULT_EFFORT:-${runtime_default_effort:-high}}"
+export GEMINI2_DEFAULT_APPROVAL_MODE="${GEMINI2_DEFAULT_APPROVAL_MODE:-${runtime_default_approval_mode:-yolo}}"
+export GEMINI2_DEFAULT_LOOP_MODE="${GEMINI2_DEFAULT_LOOP_MODE:-${runtime_default_loop_mode:-off}}"
+export GEMINI2_DEFAULT_SKILLS_MODE="${GEMINI2_DEFAULT_SKILLS_MODE:-${runtime_default_skills_mode:-auto}}"
+export GEMINI2_DEFAULT_AGENTS_MODE="${GEMINI2_DEFAULT_AGENTS_MODE:-${runtime_default_agents_mode:-auto}}"
+export GEMINI2_UPSTREAM_CHECK="${GEMINI2_UPSTREAM_CHECK:-$([[ "${runtime_upstream_watch_enabled:-on}" == "off" ]] && echo 0 || echo 1)}"
+export GEMINI2_UPSTREAM_CHECK_INTERVAL_HOURS="${GEMINI2_UPSTREAM_CHECK_INTERVAL_HOURS:-${runtime_upstream_watch_interval_hours:-12}}"
+export GEMINI2_UPSTREAM_REPO_ROOT="${GEMINI2_UPSTREAM_REPO_ROOT:-$REPO_ROOT}"
+export GEMINI2_STATE_DIR="${GEMINI2_STATE_DIR:-$SCRIPT_DIR/.gemini2-state}"
+
+if [[ -z "${GEMINI_MODEL:-}" ]]; then
+  export GEMINI_MODEL="$GEMINI2_DEFAULT_MODEL"
+fi
+
+if [[ ! -f "$CLI_ENTRY" ]]; then
+  echo "Modified Gemini CLI build not found at: $CLI_ENTRY" >&2
+  echo "Run: npm run build --workspace @google/gemini-cli" >&2
+  exit 1
+fi
+
+should_skip_boot=0
+has_explicit_approval_mode=0
+args=()
+if [[ "$#" -gt 0 ]]; then
+  args=("$@")
+fi
+for arg in "$@"; do
+  case "$arg" in
+    --version|-v|--help|-h|help)
+      should_skip_boot=1
+      ;;
+    --yolo|--approval-mode|--approval-mode=*)
+      has_explicit_approval_mode=1
+      ;;
+  esac
+done
+
+if [[ "${GEMINI2_SKIP_BOOT:-0}" != "1" && "$should_skip_boot" -eq 0 ]]; then
+  workspace_name="$(basename "$GEMINI2_SHARED_FABRIC_WORKSPACE" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')"
+  timestamp="$(date '+%Y%m%d-%H%M%S')"
+  export GEMINI2_BOOT_TASK_ID="${GEMINI2_BOOT_TASK_ID:-gemini2-${workspace_name:-workspace}-${timestamp}}"
+  boot_warnings=()
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    boot_warnings+=("python3-not-found")
+  elif ! python3 "$GEMINI2_SHARED_FABRIC_ROOT/scripts/sync/preflight_check.py" \
+    --global-root "$GEMINI2_SHARED_FABRIC_ROOT" \
+    --workspace "$GEMINI2_SHARED_FABRIC_WORKSPACE" \
+    --agent gemini-2 \
+    --task-id "$GEMINI2_BOOT_TASK_ID"; then
+    boot_warnings+=("preflight-failed")
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    if ! python3 "$GEMINI2_SHARED_FABRIC_ROOT/scripts/sync/sync_all.py" \
+      --global-root "$GEMINI2_SHARED_FABRIC_ROOT" \
+      --workspace "$GEMINI2_SHARED_FABRIC_WORKSPACE" \
+      --agent gemini-2 \
+      --task-id "$GEMINI2_BOOT_TASK_ID" \
+      --skip-export; then
+      boot_warnings+=("sync-failed")
+    fi
+  fi
+
+  if [[ "${#boot_warnings[@]}" -eq 0 ]]; then
+    echo "[BOOT_OK] gemini-2 task-id=$GEMINI2_BOOT_TASK_ID"
+  else
+    export GEMINI2_BOOT_DEGRADED=1
+    echo "[BOOT_WARN] gemini-2 task-id=$GEMINI2_BOOT_TASK_ID continuing in degraded mode: ${boot_warnings[*]}" >&2
+  fi
+fi
+
+if [[ "${GEMINI2_UPSTREAM_CHECK}" != "0" && "$should_skip_boot" -eq 0 && -f "$UPSTREAM_CHECK_HELPER" ]]; then
+  node "$UPSTREAM_CHECK_HELPER" || true
+fi
+
+if [[ "$has_explicit_approval_mode" -eq 0 ]]; then
+  if [[ "${#args[@]}" -gt 0 ]]; then
+    args=(--approval-mode "$GEMINI2_DEFAULT_APPROVAL_MODE" "${args[@]}")
+  else
+    args=(--approval-mode "$GEMINI2_DEFAULT_APPROVAL_MODE")
+  fi
+fi
+
+if [[ "${#args[@]}" -gt 0 ]]; then
+  exec node "$CLI_ENTRY" "${args[@]}"
+else
+  exec node "$CLI_ENTRY"
+fi

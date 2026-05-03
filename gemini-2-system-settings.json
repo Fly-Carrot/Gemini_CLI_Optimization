@@ -1,0 +1,18 @@
+{
+  "general": {
+    "enableAutoUpdate": false,
+    "enableAutoUpdateNotification": false,
+    "plan": {
+      "modelRouting": false
+    }
+  },
+  "model": {
+    "name": "pro"
+  },
+  "ui": {
+    "inlineThinkingMode": "full",
+    "useAlternateBuffer": false,
+    "terminalBuffer": false,
+    "incrementalRendering": false
+  }
+}

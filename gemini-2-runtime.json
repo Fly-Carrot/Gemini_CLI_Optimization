@@ -1,0 +1,16 @@
+{
+  "sharedFabricRoot": "~/Antigravity_Skills/global-agent-fabric",
+  "systemSettingsPath": "./gemini-2-system-settings.json",
+  "defaults": {
+    "model": "pro",
+    "effort": "high",
+    "approvalMode": "yolo",
+    "loopMode": "off",
+    "skillsMode": "auto",
+    "agentsMode": "auto"
+  },
+  "upstreamWatch": {
+    "enabled": "on",
+    "intervalHours": "12"
+  }
+}

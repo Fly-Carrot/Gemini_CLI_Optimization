@@ -1,0 +1,9 @@
+.DS_Store
+.agents/
+.gemini2-state/
+tmp_audit/
+node_modules/
+Gemini-2.app/
+Gemini-2 Studio.app/
+gemini-2-runtime.local.json
+ref structure/

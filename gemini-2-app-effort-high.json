@@ -1,0 +1,12 @@
+{
+  "general": {
+    "enableAutoUpdate": false,
+    "enableAutoUpdateNotification": false,
+    "plan": {
+      "modelRouting": false
+    }
+  },
+  "ui": {
+    "inlineThinkingMode": "full"
+  }
+}
