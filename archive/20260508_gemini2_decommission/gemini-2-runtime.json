@@ -7,7 +7,14 @@
     "approvalMode": "yolo",
     "loopMode": "off",
     "skillsMode": "auto",
-    "agentsMode": "auto"
+    "agentsMode": "auto",
+    "shellReplyMode": "suggest",
+    "authType": "oauth-personal"
+  },
+  "vertexAI": {
+    "enabled": "off",
+    "project": "",
+    "location": "us-central1"
   },
   "upstreamWatch": {
     "enabled": "on",

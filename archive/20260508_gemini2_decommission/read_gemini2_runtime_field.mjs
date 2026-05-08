@@ -125,6 +125,8 @@ function validateField(field, value) {
     case 'defaults.skillsMode':
     case 'defaults.agentsMode':
       return ['manual', 'auto', 'full'].includes(value);
+    case 'defaults.shellReplyMode':
+      return ['manual', 'suggest', 'auto'].includes(value);
     case 'upstreamWatch.enabled':
       return ['on', 'off'].includes(value);
     case 'upstreamWatch.intervalHours':

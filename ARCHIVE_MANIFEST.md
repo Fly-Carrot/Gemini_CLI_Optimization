@@ -12,7 +12,7 @@ This archive preserves the workspace-level assets around the Gemini-2 system:
 ## Core code snapshot
 
 - Gemini-2 fork repository: [Fly-Carrot/gemini-cli](https://github.com/Fly-Carrot/gemini-cli)
-- Archived fork commit: [`2f88c9faa`](https://github.com/Fly-Carrot/gemini-cli/commit/2f88c9faa)
+- Archived fork commit: [`23314e180`](https://github.com/Fly-Carrot/gemini-cli/commit/23314e180)
 
 ## External dependencies expected on a live machine
 

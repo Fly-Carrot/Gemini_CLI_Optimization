@@ -45,6 +45,11 @@ runtime_default_approval_mode="$(read_runtime_config_field defaults.approvalMode
 runtime_default_loop_mode="$(read_runtime_config_field defaults.loopMode)"
 runtime_default_skills_mode="$(read_runtime_config_field defaults.skillsMode)"
 runtime_default_agents_mode="$(read_runtime_config_field defaults.agentsMode)"
+runtime_default_shell_reply_mode="$(read_runtime_config_field defaults.shellReplyMode)"
+runtime_default_auth_type="$(read_runtime_config_field defaults.authType)"
+runtime_vertex_enabled="$(read_runtime_config_field vertexAI.enabled)"
+runtime_vertex_project="$(read_runtime_config_field vertexAI.project)"
+runtime_vertex_location="$(read_runtime_config_field vertexAI.location)"
 runtime_upstream_watch_enabled="$(read_runtime_config_field upstreamWatch.enabled)"
 runtime_upstream_watch_interval_hours="$(read_runtime_config_field upstreamWatch.intervalHours)"
 
@@ -62,6 +67,11 @@ export GEMINI2_DEFAULT_APPROVAL_MODE="${GEMINI2_DEFAULT_APPROVAL_MODE:-${runtime
 export GEMINI2_DEFAULT_LOOP_MODE="${GEMINI2_DEFAULT_LOOP_MODE:-${runtime_default_loop_mode:-off}}"
 export GEMINI2_DEFAULT_SKILLS_MODE="${GEMINI2_DEFAULT_SKILLS_MODE:-${runtime_default_skills_mode:-auto}}"
 export GEMINI2_DEFAULT_AGENTS_MODE="${GEMINI2_DEFAULT_AGENTS_MODE:-${runtime_default_agents_mode:-auto}}"
+export GEMINI2_DEFAULT_SHELL_REPLY_MODE="${GEMINI2_DEFAULT_SHELL_REPLY_MODE:-${runtime_default_shell_reply_mode:-suggest}}"
+export GEMINI2_DEFAULT_AUTH_TYPE="${GEMINI2_DEFAULT_AUTH_TYPE:-${runtime_default_auth_type:-oauth-personal}}"
+export GEMINI2_VERTEX_ENABLED="${GEMINI2_VERTEX_ENABLED:-${runtime_vertex_enabled:-off}}"
+export GEMINI2_VERTEX_PROJECT="${GEMINI2_VERTEX_PROJECT:-${runtime_vertex_project:-}}"
+export GEMINI2_VERTEX_LOCATION="${GEMINI2_VERTEX_LOCATION:-${runtime_vertex_location:-us-central1}}"
 export GEMINI2_UPSTREAM_CHECK="${GEMINI2_UPSTREAM_CHECK:-$([[ "${runtime_upstream_watch_enabled:-on}" == "off" ]] && echo 0 || echo 1)}"
 export GEMINI2_UPSTREAM_CHECK_INTERVAL_HOURS="${GEMINI2_UPSTREAM_CHECK_INTERVAL_HOURS:-${runtime_upstream_watch_interval_hours:-12}}"
 export GEMINI2_UPSTREAM_REPO_ROOT="${GEMINI2_UPSTREAM_REPO_ROOT:-$REPO_ROOT}"
@@ -79,11 +89,23 @@ fi
 
 should_skip_boot=0
 has_explicit_approval_mode=0
+vertex_flag=0
+expect_vertex_project_value=0
+expect_vertex_location_value=0
 args=()
-if [[ "$#" -gt 0 ]]; then
-  args=("$@")
-fi
 for arg in "$@"; do
+  if [[ "$expect_vertex_project_value" -eq 1 ]]; then
+    export GEMINI2_VERTEX_PROJECT="$arg"
+    expect_vertex_project_value=0
+    continue
+  fi
+
+  if [[ "$expect_vertex_location_value" -eq 1 ]]; then
+    export GEMINI2_VERTEX_LOCATION="$arg"
+    expect_vertex_location_value=0
+    continue
+  fi
+
   case "$arg" in
     --version|-v|--help|-h|help)
       should_skip_boot=1
@@ -91,8 +113,56 @@ for arg in "$@"; do
     --yolo|--approval-mode|--approval-mode=*)
       has_explicit_approval_mode=1
       ;;
+    --vertex)
+      vertex_flag=1
+      continue
+      ;;
+    --vertex-project)
+      vertex_flag=1
+      expect_vertex_project_value=1
+      continue
+      ;;
+    --vertex-project=*)
+      vertex_flag=1
+      export GEMINI2_VERTEX_PROJECT="${arg#*=}"
+      continue
+      ;;
+    --vertex-location)
+      vertex_flag=1
+      expect_vertex_location_value=1
+      continue
+      ;;
+    --vertex-location=*)
+      vertex_flag=1
+      export GEMINI2_VERTEX_LOCATION="${arg#*=}"
+      continue
+      ;;
   esac
+  args+=("$arg")
 done
+
+if [[ "$expect_vertex_project_value" -eq 1 || "$expect_vertex_location_value" -eq 1 ]]; then
+  echo "gemini-2: --vertex-project and --vertex-location both require a value." >&2
+  exit 1
+fi
+
+if [[ "$vertex_flag" -eq 1 || "${GEMINI2_VERTEX_ENABLED}" == "on" || "${GEMINI2_DEFAULT_AUTH_TYPE}" == "vertex-ai" ]]; then
+  export GOOGLE_GENAI_USE_VERTEXAI="${GOOGLE_GENAI_USE_VERTEXAI:-true}"
+  export GEMINI_DEFAULT_AUTH_TYPE="${GEMINI_DEFAULT_AUTH_TYPE:-vertex-ai}"
+
+  if [[ -n "${GEMINI2_VERTEX_PROJECT}" && -z "${GOOGLE_CLOUD_PROJECT:-}" ]]; then
+    export GOOGLE_CLOUD_PROJECT="${GEMINI2_VERTEX_PROJECT}"
+  fi
+
+  if [[ -n "${GEMINI2_VERTEX_LOCATION}" && -z "${GOOGLE_CLOUD_LOCATION:-}" ]]; then
+    export GOOGLE_CLOUD_LOCATION="${GEMINI2_VERTEX_LOCATION}"
+  fi
+
+  if [[ -z "${GOOGLE_API_KEY:-}" && ( -z "${GOOGLE_CLOUD_PROJECT:-}" || -z "${GOOGLE_CLOUD_LOCATION:-}" ) ]]; then
+    echo "[VERTEX_WARN] Vertex AI mode is enabled, but GOOGLE_CLOUD_PROJECT/GOOGLE_CLOUD_LOCATION or GOOGLE_API_KEY is still missing." >&2
+    echo "[VERTEX_WARN] Recommended setup: gcloud auth application-default login && export GOOGLE_CLOUD_PROJECT=<project> && export GOOGLE_CLOUD_LOCATION=us-central1" >&2
+  fi
+fi
 
 if [[ "${GEMINI2_SKIP_BOOT:-0}" != "1" && "$should_skip_boot" -eq 0 ]]; then
   workspace_name="$(basename "$GEMINI2_SHARED_FABRIC_WORKSPACE" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')"

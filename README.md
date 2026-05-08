@@ -1,6 +1,14 @@
-# Gemini CLI Optimization Archive
+# Gemini-2 Archive
 
-This repository archives the workspace-level Gemini-2 launcher, bootstrap kit, desktop shell wrappers, workflow notes, and migration assets that sit around the core Gemini CLI fork.
+This repository is archived. It preserves the old Gemini-2 launcher,
+bootstrap kit, desktop shell wrappers, workflow notes, and migration assets
+that were built around a customized Gemini CLI fork.
+
+The active recommendation is to use the official Gemini CLI directly:
+
+```bash
+gemini
+```
 
 ## Repository roles
 
@@ -9,24 +17,29 @@ This repository archives the workspace-level Gemini-2 launcher, bootstrap kit, d
 - Archive and system wrapper: [Fly-Carrot/Gemini_CLI_Optimization](https://github.com/Fly-Carrot/Gemini_CLI_Optimization)
   - edit this when you want to change the `gemini-2` launcher, bootstrap kit, deployment flow, migration notes, macOS shell wrapper source, or workflow documentation
 
-## Daily entrypoints
+## Archive contents
 
-- Run Gemini-2 locally with [gemini-2](/Users/david_chen/Desktop/MCP_Hub/Gemini_CLI_Optimization/gemini-2)
-- Core source checkout lives in [ref structure/gemini-cli](</Users/david_chen/Desktop/MCP_Hub/Gemini_CLI_Optimization/ref structure/gemini-cli>)
-- Restore or migrate the system with [gemini2_bootstrap_kit.md](/Users/david_chen/Desktop/MCP_Hub/Gemini_CLI_Optimization/gemini2_bootstrap_kit.md)
+- Historical Gemini-2 launcher files and runtime configuration
+- Bootstrap and profile export/import scripts in `scripts/`
+- macOS shell app source in `macos/`
+- Workflow, evaluation, and integration notes
+- The old Gemini-2 fork checkout in `ref structure/gemini-cli`
+
+## Current daily entrypoint
+
+- Official Gemini CLI: `/opt/homebrew/bin/gemini`
+- Archived Gemini-2 materials remain here only for reference and rollback
 
 ## Core repositories
 
 - Gemini-2 fork: [Fly-Carrot/gemini-cli](https://github.com/Fly-Carrot/gemini-cli)
 - Upstream base: [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)
 
-## What is archived here
+## Archive status
 
-- `gemini-2` launcher and runtime configuration
-- bootstrap and profile export/import scripts in `scripts/`
-- macOS shell app source in `macos/`
-- workflow, evaluation, and integration notes
-- canonical snippet and deployment guides
+- This repository is intended for historical reference only.
+- GitHub archival should prevent future active development here.
+- See [ARCHIVE_MANIFEST.md](/Users/david_chen/Desktop/MCP_Hub/Gemini_CLI_Optimization/ARCHIVE_MANIFEST.md) for the final linked fork snapshot.
 
 ## What is intentionally not vendored
 
